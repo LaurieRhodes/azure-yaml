@@ -69,8 +69,6 @@ Please take time to review the Readme lined to this module.
 
 
 
-
-
 ## *Example Install Script*
 
 The example below demonstrates the deployment of YAML files into Azure.  
@@ -104,3 +102,14 @@ Get-Yamlfile -Path "$path\Sentinel\EnableSentinel.yaml" | Push-Azureobject -Auth
 
 
 
+## Benefits of using YAML with Azure
+
+Any object can be processed and modified from the command line easily without a risk of dependency failure that is often attributed to PowerShell cmdlets with Azure.
+
+![](\images\PSObject.jpg)
+
+Azure Resource Manager (ARM) templates are only a wrapper for calling Azure's providers.  By using PowerShell as the wrapper (or any other language) creating templates with advanced logic is a lot faster and more powerful.
+
+Unlike third party products, using YAML with Azure isn't a framework.  It's simply working with Azure objects directly sand saving them in a YAML format.  This means that all Microsoft Providers are always accessible without the overhead of creating custom libraries as Microsoft's service change.
+
+Importantly, YAML is designed to be human readable and it supports the addition of comments into templates.  Something sorely missing with ARM. 

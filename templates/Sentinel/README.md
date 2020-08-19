@@ -67,5 +67,9 @@ Get-Yamlfile -Path "$path\Sentinel\dataConnectors\253f8493-841e-4264-a218-4b7697
 
 ```
 
+Note: **Workbook templates** contain escaped JSON by design.  To be pushed to Azure successfully, escaping must be left intact.  This is done by setting "unescape" to false.
 
+```powershell
+| Push-Azureobject -AuthHeader $authHeader -Apiversions $AzAPIVersions -unescape $false
+```
 
