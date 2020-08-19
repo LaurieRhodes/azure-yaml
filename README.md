@@ -106,7 +106,7 @@ Get-Yamlfile -Path "$path\Sentinel\EnableSentinel.yaml" | Push-Azureobject -Auth
 
 Any object can be processed and modified from the command line easily without a risk of dependency failure that is often attributed to PowerShell cmdlets with Azure.
 
-![](https://github.com/LaurieRhodes/azure-yaml/images/PSObject.jpg)
+![PSObject](images/PSObject.jpg)
 
 Azure Resource Manager (ARM) templates are only a wrapper for calling Azure's providers.  By using PowerShell as the wrapper (or any other language) creating templates with advanced logic is a lot faster and more powerful.
 
