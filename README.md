@@ -110,6 +110,6 @@ Any object can be processed and modified from the command line easily without a 
 
 Azure Resource Manager (ARM) templates are only a wrapper for calling Azure's providers.  By using PowerShell as the wrapper (or any other language) creating templates with advanced logic is a lot faster and more powerful.
 
-Unlike third party products, using YAML with Azure isn't a framework.  It's simply working with Azure objects directly sand saving them in a YAML format.  This means that all Microsoft Providers are always accessible without the overhead of creating custom libraries as Microsoft's service change.
+Unlike third party products, using YAML with Azure isn't a framework.  It's simply working with Azure objects directly and saving them in a YAML format.  This means that all Microsoft Providers are always accessible without the overhead of creating custom libraries as Microsoft's service change.
 
 Importantly, YAML is designed to be human readable and it supports the addition of comments into templates.  Something sorely missing with ARM. 
