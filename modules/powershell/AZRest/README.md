@@ -17,8 +17,6 @@ Import-Module "<path-to-module>\AZRest\AZRest.psm1"
 
 
 
-
-
 ## Get-Header
 
 To Generically produce a header for use in calling Microsoft API endpoints.  Authentication supports combinations of either Username and Password, AppId and certificate thumbprint or AppId and Secret.  This module does not support MultiFactor Authentication.
