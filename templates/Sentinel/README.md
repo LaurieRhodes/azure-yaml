@@ -53,7 +53,7 @@ if (!$AzAPIVersions){$AzAPIVersions = Get-AzureAPIVersions -header $authHeader -
 
 
 
-# Create a Sentinel space and attach the Azure Security Centre data connector
+# Create a Sentinel space
 
 $path  = "C:\Scripts\yaml"
 Get-Yamlfile -Path "$path\Sentinel\ResourceGroup.yaml" | Push-Azureobject -AuthHeader $authHeader -Apiversions $AzAPIVersions 
