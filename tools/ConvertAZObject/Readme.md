@@ -6,6 +6,18 @@ Most Azure objects will have a visible Id in the console.  This Id can be used f
 
 
 
+Converting a portal deployed object can be an easy way to generate an initial template for generating YAML templates.  At the completion of every GUI based portal deployment, the Azure Portal displays a deployment completion message with operation details.
+
+![ClickOpsDeployment](Images/ClickOpsDeployment.jpg)
+
+The Operation details list the Resource IDs of every object that has ben provisioned in the solution which makes it easy to retrieve copies of each object from the cloud.
+
+![ClickOps2](Images/ClickOps2.JPG)
+
+
+
+## Example Retrieval Script
+
 An example of the script is below.
 
 ```powershell

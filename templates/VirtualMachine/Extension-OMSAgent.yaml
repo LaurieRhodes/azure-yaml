@@ -1,0 +1,14 @@
+#  Note 
+#  1. the Workspace ID references the Log Collection workspace for OMS
+#  2. The Id references the machine being deployed to
+#
+id: /subscriptions/2be53ae5-6e46-47df-beb9-6f3a795387b8/resourceGroups/rg-drtest/providers/Microsoft.Compute/virtualMachines/rhelvm002/extensions/OmsAgentForLinux
+type: Microsoft.Compute/virtualMachines/extensions
+location: australiaeast
+properties:
+  autoUpgradeMinorVersion: true
+  publisher: Microsoft.EnterpriseCloud.Monitoring
+  type: OmsAgentForLinux
+  typeHandlerVersion: "1.0"
+  settings:
+    workspaceId: 5a1054b5-5f9e-479c-bf79-4844a01e5cd1
