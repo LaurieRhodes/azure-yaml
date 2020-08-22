@@ -11,19 +11,21 @@ A second module (AZRest) is included in this repository that demonstrates how to
 
 
 
-**Required Modules**
+## **Required Modules**
 
-1.  <u>'powershell-yaml' - with modificationmodification.</u>
+### 'powershell-yaml' - with modification
 
-The 'powershell-yaml' module is available for installation via [Powershell Gallery](http://www.powershellgallery.com/). Simply run the following command:
+A forked version of powershell-yaml is available for download here:
 
-```
-Install-Module powershell-yaml
-```
+https://github.com/LaurieRhodes/powershell-yaml/releases/download/datemod/powershell-yaml.zip
+
+Download a copy of the zip file.
+
+*<u>Modification description</u>*
 
 The installed module will be found at "C:\Program Files\WindowsPowerShell\Modules\powershell-yaml"
 
-The current version (0.4.2) does not natively support overriding the automatic detection of data types, which is a fundamental problem for the version field with ARM templates.  After the powershell-yaml module is installed, either the '*powershell-yaml.psm1*' file may be modified directly or a copy can be made and amended.
+The official version (0.4.2) does not natively support overriding the automatic detection of data types, which is a fundamental problem for the version field with ARM templates.  This modified fork of the '*powershell-yaml.psm1*' file has been amended as:
 
 Line 84: (original) function - Convert-ValueToProperType
 
@@ -52,26 +54,42 @@ The updated function is below with a final "if statement"... if the date sequenc
     }
 ```
 
-An example syntax for using the amended module is below:
+
+
+### AZRest (this Repo)
+
+A forked version of powershell-yaml is available for download here:
+
+https://github.com/LaurieRhodes/azure-yaml/releases/download/x64/AZRest.zip
+
+Download a copy of the zip file.
+
+## Install Instructions
+
+Extract both zipped modules to the directory 'C:\Program Files\WindowsPowerShell\Modules'
+
+https://github.com/LaurieRhodes/powershell-yaml/releases/download/datemod/powershell-yaml.zip
+
+https://github.com/LaurieRhodes/azure-yaml/releases/download/x64/AZRest.zip
+
+Hint * Use an application like 7Zip for extracting archives.  The native Windows zip extraction makes every files as coming from the Internet, meaning each needs to be touched prior to them being used.
+
+
+
+![ModulesFolder](../images/ModulesFolder.JPG)
+
+
+
+These files will be natively imported when new PowerShell sessions are started.  You may be required to manually import the modules
 
 ```powershell
-Remove-Module -Name powershell-yaml
-Import-Module "<path to module>\powershell-yaml\0.4.2\powershell-yaml.psm1" 
+Import-Module AZRest
+Import-Module powershell-yaml
 ```
 
 
 
-2. AZRest (this Repo)
-
-[\modules\powershell]: \modules\powershell	"Found here"
-
-Please take time to review the Readme lined to this module.
-
-
-
-
-
-## *Example Install Script*
+## *Example YAML Install Script*
 
 The example below demonstrates the deployment of YAML files into Azure.  
 
