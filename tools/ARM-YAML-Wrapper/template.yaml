@@ -1,0 +1,12 @@
+id: /subscriptions/ce4e3d23-f7e6-4dc0-81af-c135e4ddaf3e/resourceGroups/my-rgname/providers/Microsoft.Resources/deployments/my-deployment
+properties:
+  mode: Incremental
+  parameters:
+    Parameter1:
+      value: "xxxxxxxxxxxxxxxxxxxx"
+    Parameter2:
+      value: "xxxxxxxxxxxxxxxxxxxx"
+  template:
+    "$schema": https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#
+    contentVersion: 1.0.0.0
+
