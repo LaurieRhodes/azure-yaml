@@ -3,7 +3,7 @@ This example demonstrates using YAML templates for provisioning an Azure Sentine
 
 The example will use Sentinel from the templates directory in this Repo.
 
-![Devops Files](images/Devops Files.JPG)
+![DevopsFiles](images/DevopsFiles.JPG)
 
 Note that a 'modules' directory contains the two PowerShell modules required by this process. - AZRest &  powershell-yaml. 
 
