@@ -1,5 +1,5 @@
 # Azure DevOps - Using YAML Modules 
-This example demonstrates using YAML templates for provisioning an Azure Sentinel environment.
+This example demonstrates using YAML templates for provisioning an Azure Sentinel environment.  Azure DevOps pipelines are YAML based (as shown later in this page).  Using YAML templates for Azure objects  standardises Microsoft's approach for Infrastructure as Code.
 
 The example will use Sentinel from the templates directory in this Repo.
 
@@ -7,11 +7,25 @@ The example will use Sentinel from the templates directory in this Repo.
 
 Note that a 'modules' directory contains the two PowerShell modules required by this process. - AZRest &  powershell-yaml. 
 
-Two variables are also set as part of this project.
+[..\modules\powershell]: ..\modules\powershell	"Readme for Installing PowerShell Modules"
+
+The powershell-yaml module will install 'YAML Dot Net' upon first use.  This dll is not included with the powershell-yaml module on this site - you will need to initialise the module on a Windows workstation get get that dependency prior to copying the folder into the modules area of this repo.  After using the module for the first time you'll see the downloaded YamlDotNet.dll 
+
+![PSyaml](images/PSyaml.JPG)
+
+
+
+### Pipeline Variables
+
+Two 'secret' variables are also set as part of the Azure Devops project.  This is to keep sensitive material out of the plain text pipeline.
 
 <img src="images/variables.JPG" alt="variables" style="zoom:50%;" />
 
-**Example Pipeline**
+
+
+### **Example Pipeline**
+
+The Pipeline below will deploy a new Sentinel Repository.
 
 ```powershell
 trigger:
