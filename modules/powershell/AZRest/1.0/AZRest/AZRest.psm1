@@ -39,7 +39,7 @@ Version History
 
 #>
 function Get-Header(){
-
+ 
     [CmdletBinding()]
     param(
         [Parameter(ParameterSetName="User")]
@@ -58,14 +58,14 @@ function Get-Header(){
         [Parameter(ParameterSetName="App2")]
         [string]$Secret
     )
-
-
+ 
+ 
     begin {
-
-
+ 
+ 
        $ClientId       = "1950a258-227b-4e31-a9cf-717495945fc2" 
-
-
+ 
+ 
        switch($Scope){
            'azure' {$TokenEndpoint = "https://login.microsoftonline.com/$($tenant)/oauth2/v2.0/token"
                     $RequestScope = "https://management.azure.com/.default"
@@ -75,15 +75,19 @@ function Get-Header(){
                     $RequestScope = "https://graph.microsoft.com/.default"
                     $ResourceID  = "https://graph.microsoft.com"
                     }
+           'keyvault'{$TokenEndpoint = "https://login.microsoftonline.com/$($tenant)/oauth2/v2.0/token"
+                    $RequestScope = "https://vault.azure.net/.default"
+                    $ResourceID  = "https://vault.azure.net"
+                    }
            default { throw "Scope $($Scope) undefined - use azure or graph'" }
         }
-
+ 
         #Set Accountname based on Username or AppId
         if (!([string]::IsNullOrEmpty($Username))){$Accountname = $Username }
         if (!([string]::IsNullOrEmpty($AppId))){$Accountname = $AppId }
-
+ 
         
-
+ 
     }
     
     process {
@@ -91,7 +95,7 @@ function Get-Header(){
         # Authenticating with Certificate
         if (!([string]::IsNullOrEmpty($Thumbprint))){
             write-host "+++ Certificate Authentication"
-
+ 
             # Try Local Machine Certs
             $Certificate = ((Get-ChildItem -Path Cert:\LocalMachine  -force -Recurse )| Where-Object {$_.Thumbprint -match $Thumbprint});
             if ([string]::IsNullOrEmpty($Certificate)){
@@ -100,8 +104,8 @@ function Get-Header(){
             }
             
             if ([string]::IsNullOrEmpty($Certificate)){throw "certificate not found"}
-
-
+ 
+ 
             # Create base64 hash of certificate
             $CertificateBase64Hash = [System.Convert]::ToBase64String($Certificate.GetCertHash())
           
@@ -109,11 +113,11 @@ function Get-Header(){
             $StartDate = (Get-Date "1970-01-01T00:00:00Z" ).ToUniversalTime()
             $JWTExpirationTimeSpan = (New-TimeSpan -Start $StartDate -End (Get-Date).ToUniversalTime().AddMinutes(2)).TotalSeconds
             $JWTExpiration = [math]::Round($JWTExpirationTimeSpan,0)
-
+ 
             # Create JWT validity start timestamp
             $NotBeforeExpirationTimeSpan = (New-TimeSpan -Start $StartDate -End ((Get-Date).ToUniversalTime())).TotalSeconds
             $NotBefore = [math]::Round($NotBeforeExpirationTimeSpan,0)
-
+ 
             # Create JWT header
             $JWTHeader = @{
                 alg = "RS256"
@@ -130,37 +134,37 @@ function Get-Header(){
                 nbf = $NotBefore
                 sub = $AppId
             }
-
+ 
            
             # Convert header and payload to base64
             $JWTHeaderToByte = [System.Text.Encoding]::UTF8.GetBytes(($JWTHeader | ConvertTo-Json))
             $EncodedHeader = [System.Convert]::ToBase64String($JWTHeaderToByte)
-
+ 
             $JWTPayLoadToByte =  [System.Text.Encoding]::UTF8.GetBytes(($JWTPayload | ConvertTo-Json))
             $EncodedPayload = [System.Convert]::ToBase64String($JWTPayLoadToByte)
-
+ 
             # Join header and Payload with "." to create a valid (unsigned) JWT
             $JWT = $EncodedHeader + "." + $EncodedPayload
-
+ 
             # Get the private key object of your certificate
             $PrivateKey = $Certificate.PrivateKey
             if ([string]::IsNullOrEmpty($PrivateKey)){throw "Unable to access certificate Private Key"}
-
+ 
             # Define RSA signature and hashing algorithm
             $RSAPadding = [Security.Cryptography.RSASignaturePadding]::Pkcs1
             $HashAlgorithm = [Security.Cryptography.HashAlgorithmName]::SHA256
-
+ 
             # Create a signature of the JWT
-
+ 
             $Signature = [Convert]::ToBase64String( $PrivateKey.SignData([System.Text.Encoding]::UTF8.GetBytes($JWT),$HashAlgorithm,$RSAPadding) ) -replace '\+','-' -replace '/','_' -replace '='
             
             $JWTBytes = [System.Text.Encoding]::UTF8.GetBytes($JWT)
-
-
+ 
+ 
             # Join the signature to the JWT with "."
             $JWT = $JWT + "." + $Signature
-
-
+ 
+ 
        switch($Scope){
            'azure' {
                     $Body = @{
@@ -170,7 +174,6 @@ function Get-Header(){
                         scope = $RequestScope
                         grant_type = "client_credentials"
                     }
-
                     }
            'graph' {
                     $Body = "grant_type=client_credentials" `
@@ -179,18 +182,26 @@ function Get-Header(){
                      +"&client_assertion=" +$JWT `
                      +"&client_assertion_type=" +"urn:ietf:params:oauth:client-assertion-type:jwt-bearer" `
                      +"&scope=" +$RequestScope
-
+                    }
+           'keyvault' {
+                    $Body = @{
+                        client_id = $AppId 
+                        client_assertion = $JWT
+                        client_assertion_type = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+                        scope = $RequestScope
+                        grant_type = "client_credentials"
+                    }
                     }
         }# end switch
-
-
+ 
+ 
             $Url = "https://login.microsoftonline.com/$Tenant/oauth2/v2.0/token"
-
+ 
             # Use the self-generated JWT as Authorization
             $Header = @{
                 Authorization = "Bearer $JWT"
             }
-
+ 
             # Splat the parameters for Invoke-Restmethod for cleaner code
             $PostSplat = @{
                 ContentType = 'application/x-www-form-urlencoded'
@@ -199,8 +210,8 @@ function Get-Header(){
                 Uri = $Url
                 Headers = $Header
             }
-
-
+ 
+ 
             #Get Bearer Token
             $Request = Invoke-RestMethod @PostSplat
             # Create header
@@ -208,15 +219,15 @@ function Get-Header(){
             $Header = @{
                 Authorization = "$($Request.token_type) $($Request.access_token)"
             }
-
-
+ 
+ 
         } # End Certificate Authentication
-
-
-
+ 
+ 
+ 
         # Authenticating with Password
         if (!([string]::IsNullOrEmpty($Password))){
-
+ 
        switch($Scope){
            'azure' {
                     $Body = @{
@@ -226,7 +237,6 @@ function Get-Header(){
                         scope = $RequestScope
                         grant_type = "password"
                     }
-
                     }
            'graph' {
                     $Body = "grant_type=password"`
@@ -234,15 +244,30 @@ function Get-Header(){
                      +"&client_id=" +$clientId `
                      +"&password=" +$Password `
                      +"&resource=" +[system.uri]::EscapeDataString($ResourceID)
-
+ 
                     }
-        }# end switch password
-
-        }
-
+           'keyvault' {
+                    $Body = @{
+                        client_id = $clientId 
+                        username = $Accountname
+                        password = $Password
+                        scope = $RequestScope
+                        grant_type = "password"
+                    }
+ 
+                    }
+ 
+           
+ 
+        }# end switch
+ 
+ 
+ 
+        } # end password block
+ 
         # Authenticating with Secret
         if (!([string]::IsNullOrEmpty($Secret))){
-
+ 
        switch($Scope){
            'azure' {
                     $Body = @{
@@ -251,42 +276,43 @@ function Get-Header(){
                         scope = $RequestScope
                         grant_type = "client_credentials"
                     }
-
+ 
                     }
            'graph' {
                     $Body = "grant_type=client_credentials"`
                      +"&client_id=" +$AppId `
                      +"&client_secret=" +$Secret `
                      +"&resource=" +[system.uri]::EscapeDataString($ResourceID)
-
+ 
                     }
-        }# end switch secret
-
-
-
-            # The result should contain a token for use with Graph
+        }# end switch
+ 
+ 
+       } #End secret block
+ 
+ 
+ 
+            # The result should contain a token for use with any REST endpoint
             $Response = Invoke-WebRequest -Uri $TokenEndpoint -Method POST -Body $Body -UseBasicParsing
-
+ 
             $ResponseJSON = $Response|ConvertFrom-Json
-
+ 
+ 
             #Add the token to headers for the Graph request
             $Header = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
             $Header.Add("Authorization", "Bearer "+$ResponseJSON.access_token)
             $Header.Add("Content-Type", "application/json")
-
-
-       }
-
-
+ 
     }
     
     end {
-
+ 
        return $Header 
-
+ 
     }
-
+ 
 }
+
  
 
 
