@@ -31,6 +31,9 @@ Version History
                 -Tenant     = disney.onmicrosoft.com
                 -Scope      = graph / azure
 
+                -Proxy      ="http://proxy:8080"
+                -ProxyCredential = (Credential Object)
+
   Example:  
     
      Get-Header -scope "azure" -Tenant "disney.com" -Username "Donald@disney.com" -Password "Mickey01" 
@@ -56,7 +59,11 @@ function Get-Header(){
         [Parameter(mandatory=$true)]
         [string]$Scope,
         [Parameter(ParameterSetName="App2")]
-        [string]$Secret
+        [string]$Secret,
+        [Parameter(mandatory=$false)]
+        [string]$Proxy,
+        [Parameter(mandatory=$false)]
+        [PSCredential]$ProxyCredential
     )
  
  
@@ -79,6 +86,10 @@ function Get-Header(){
                     $RequestScope = "https://vault.azure.net/.default"
                     $ResourceID  = "https://vault.azure.net"
                     }
+           'storage'{$TokenEndpoint = "https://login.microsoftonline.com/$($tenant)/oauth2/v2.0/token"
+                    $RequestScope = "https://storage.azure.com/.default"
+                    $ResourceID  = "https://storage.azure.com/"
+                    }                    
            default { throw "Scope $($Scope) undefined - use azure or graph'" }
         }
  
@@ -190,7 +201,16 @@ function Get-Header(){
                         client_assertion_type = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
                         scope = $RequestScope
                         grant_type = "client_credentials"
+                        }
                     }
+           'storage' {
+                    $Body = @{
+                        client_id = $AppId 
+                        client_assertion = $JWT
+                        client_assertion_type = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+                        scope = $RequestScope
+                        grant_type = "client_credentials"
+                        }                    
                     }
         }# end switch
  
@@ -236,7 +256,7 @@ function Get-Header(){
                         password = $Password
                         scope = $RequestScope
                         grant_type = "password"
-                    }
+                      }
                     }
            'graph' {
                     $Body = "grant_type=password"`
@@ -244,8 +264,7 @@ function Get-Header(){
                      +"&client_id=" +$clientId `
                      +"&password=" +$Password `
                      +"&resource=" +[system.uri]::EscapeDataString($ResourceID)
- 
-                    }
+                        }
            'keyvault' {
                     $Body = @{
                         client_id = $clientId 
@@ -253,10 +272,17 @@ function Get-Header(){
                         password = $Password
                         scope = $RequestScope
                         grant_type = "password"
-                    }
- 
-                    }
- 
+                      }
+                     }
+           'storage' {
+                    $Body = @{
+                        client_id = $clientId 
+                        username = $Accountname
+                        password = $Password
+                        scope = $RequestScope
+                        grant_type = "password"
+                      }
+                     } 
            
  
         }# end switch
@@ -275,16 +301,31 @@ function Get-Header(){
                         client_secret = $Secret
                         scope = $RequestScope
                         grant_type = "client_credentials"
-                    }
- 
+                      }
                     }
            'graph' {
                     $Body = "grant_type=client_credentials"`
                      +"&client_id=" +$AppId `
                      +"&client_secret=" +$Secret `
                      +"&resource=" +[system.uri]::EscapeDataString($ResourceID)
- 
-                    }
+                      }
+           'keyvault' {
+                    $Body = @{
+                        client_id = $AppId  
+                        client_secret = $Secret
+                        scope = $RequestScope
+                        grant_type = "client_credentials"
+                      }
+                    }                      
+           'storage' {
+                    $Body = @{
+                        client_id = $AppId  
+                        client_secret = $Secret
+                        scope = $RequestScope
+                        grant_type = "client_credentials"
+                      }
+                    }                      
+                      
         }# end switch
  
  
@@ -293,7 +334,33 @@ function Get-Header(){
  
  
             # The result should contain a token for use with any REST endpoint
-            $Response = Invoke-WebRequest -Uri $TokenEndpoint -Method POST -Body $Body -UseBasicParsing
+
+            $RequestSplat = @{
+                Uri = $TokenEndpoint
+                Method = “POST”
+                Body = $Body 
+            }
+
+
+
+           # $Response = Invoke-WebRequest -Uri $TokenEndpoint -Method POST -Body $Body -UseBasicParsing
+
+            $RequestSplat = @{
+                Uri = $TokenEndpoint
+                Method = “POST”
+                Body = $Body 
+                UseBasicParsing = $true
+            }
+
+
+           #Construct parameters if they exist
+           if($Proxy){ $RequestSplat.Add('Proxy', $Proxy) }
+           if($ProxyCredential){ $RequestSplat.Add('ProxyCredential', $ProxyCredential) }
+                       
+           $Response = Invoke-WebRequest @RequestSplat 
+
+
+
  
             $ResponseJSON = $Response|ConvertFrom-Json
  
@@ -302,6 +369,13 @@ function Get-Header(){
             $Header = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
             $Header.Add("Authorization", "Bearer "+$ResponseJSON.access_token)
             $Header.Add("Content-Type", "application/json")
+
+            #storage requests require two different keys in the header 
+            if ($Scope -eq "storage"){
+                $Header.Add("x-ms-version", "2019-12-12")
+                $Header.Add("x-ms-date", [System.DateTime]::UtcNow.ToString("R"))
+            }
+
  
     }
     
