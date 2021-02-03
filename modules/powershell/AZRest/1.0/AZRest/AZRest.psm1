@@ -89,7 +89,11 @@ function Get-Header(){
            'storage'{$TokenEndpoint = "https://login.microsoftonline.com/$($tenant)/oauth2/v2.0/token"
                     $RequestScope = "https://storage.azure.com/.default"
                     $ResourceID  = "https://storage.azure.com/"
-                    }                    
+                    }       
+           'analytics'{$TokenEndpoint = "https://login.microsoftonline.com/$($tenant)/oauth2/v2.0/token"
+                    $RequestScope = "https://api.loganalytics.io/.default"
+                    $ResourceID  = "https://api.loganalytics.io/"
+                    }                                   
            default { throw "Scope $($Scope) undefined - use azure or graph'" }
         }
  
@@ -203,6 +207,15 @@ function Get-Header(){
                         grant_type = "client_credentials"
                         }
                     }
+           'analytics' {
+                    $Body = @{
+                        client_id = $AppId 
+                        client_assertion = $JWT
+                        client_assertion_type = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+                        scope = $RequestScope
+                        grant_type = "client_credentials"
+                        }
+                    }                   
            'storage' {
                     $Body = @{
                         client_id = $AppId 
@@ -274,6 +287,15 @@ function Get-Header(){
                         grant_type = "password"
                       }
                      }
+           'analytics' {
+                    $Body = @{
+                        client_id = $clientId 
+                        username = $Accountname
+                        password = $Password
+                        scope = $RequestScope
+                        grant_type = "password"
+                      }
+                     }                     
            'storage' {
                     $Body = @{
                         client_id = $clientId 
@@ -316,7 +338,15 @@ function Get-Header(){
                         scope = $RequestScope
                         grant_type = "client_credentials"
                       }
-                    }                      
+                    }  
+           'analytics' {
+                    $Body = @{
+                        client_id = $AppId  
+                        client_secret = $Secret
+                        scope = $RequestScope
+                        grant_type = "client_credentials"
+                      }
+                    }                                             
            'storage' {
                     $Body = @{
                         client_id = $AppId  
@@ -478,6 +508,123 @@ param(
     ConvertFrom-Yaml $content
 
 }
+
+
+
+<#
+  Function:  Get-JSONfile
+
+  Purpose:  Transforms a saved Yaml file to a Powershell Hash table
+
+  Parameters:   -Path      = The file path for the json file to import.
+
+  Example:  
+    
+            $object = Get-JSONfile `-Path "C:\templates\vmachine.json"
+#>
+function Get-Jsonfile(){
+param(
+    [parameter( Mandatory = $true)]
+    [string]$Path
+)
+
+    $content = $null
+
+    $content = Get-Content -Path $path -Raw 
+
+    ConvertFrom-Json  -InputObject $content
+
+}
+
+
+
+
+<#
+  Function:  Set-AzureObject
+
+  Purpose:  Changes aspects of the Id Property of an Azure object.  This allows
+            Properties to be modified from the default values stored in templates.
+            Typically this might be changing subscription or resourcegroup values
+            for testing.
+
+  Parameters:   -object        = The PowerShell custom object / Azure object to be modified
+                -subscription  = The new subscription gui to deploy to
+
+
+  Example:  
+    
+          $object = Set-AzureObject -object $object -Subscription "2be53ae5-6e46-47df-beb9-6f3a795387b8"
+#> 
+function Set-AzureObject(){
+param(
+    [parameter( Mandatory = $false)]
+    [string]$Subscription,
+    [parameter( Mandatory = $true)]
+    [System.Object]$object
+)
+
+    if ($Subscription){ $object = Set-IdSubscription -object $object -Subscription $Subscription }
+
+    #return the object
+    $object 
+}
+
+
+
+<#
+  Function: Set-IdSubscription
+
+  Purpose:  Changes the subscription of the Id Property with an Azure object.  
+
+  Parameters:   -object        = The PowerShell custom object / Azure object to be modified
+                -subscription  = The new subscription gui to deploy to
+
+
+  Example:  
+    
+          $object = Set-IdSubscription -object $object -Subscription "2be53ae5-6e46-47df-beb9-6f3a795387b8"
+#> 
+function Set-IdSubscription(){
+param(
+    [parameter( Mandatory = $true)]
+    [string]$Subscription,
+    [parameter( Mandatory = $true)]
+    [System.Object]$object
+)
+
+  #Get Id property and split by '/' subscription
+  try{
+  $id = $object.id
+    $IdArray = $id.split('/')
+     
+  }
+  catch{
+    throw "Unable to split Id element on object for subscription substitution.  Check input object"
+  }
+
+  If ($IdArray[1] -eq 'subscriptions'){
+    # substitute the subscription id with the new version
+    $IdArray[2] = $Subscription
+
+    #reconstruct the Id
+    $id = ""
+        for ($i=1;$i -lt $IdArray.Count; $i++) {
+	    "This is object " + $i
+        $IdArray[$i]
+        $id = $id + "/" + $IdArray[$i] 
+    }
+
+   write-debug "new constructed id = $($id)"
+
+   $object.id = $id
+
+   #return the amendedobject
+   $object
+
+  }
+ 
+}
+
 
 
 
@@ -660,4 +807,4 @@ Process  {
 
 
 
-Export-ModuleMember -function Get-Header, Get-Latest, Get-AzureAPIVersions, Get-AzureObject, Push-AzureObject, Remove-AzureObject, Get-Yamlfile
+Export-ModuleMember -function Get-Header, Get-Latest, Get-AzureAPIVersions, Get-AzureObject, Set-AzureObject, Push-AzureObject, Remove-AzureObject, Get-Yamlfile, Get-Jsonfile
