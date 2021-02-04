@@ -528,12 +528,75 @@ param(
     [string]$Path
 )
 
-    $content = $null
+    [string]$content = $null
 
-    $content = Get-Content -Path $path -Raw 
+    [string]$content = Get-Content -Path $path -Raw 
+    
+    Remove-TypeData System.Array # Remove the redundant ETS-supplied .Count property
+    # https://stackoverflow.com/questions/20848507/why-does-powershell-give-different-result-in-one-liner-than-two-liner-when-conve/38212718#38212718
 
-    ConvertFrom-Json  -InputObject $content
+    $jsonobj =  ($content  | ConvertFrom-Json )
 
+    $AzObject = ConvertTo-HashTable -InputObject $jsonobj
+
+    
+    $AzObject
+}
+
+
+
+<#
+  Function:  ConvertTo-Hashtable
+  
+  Author:  Adam Bertram
+             https://4sysops.com/archives/convert-json-to-a-powershell-hash-table/
+
+  Purpose:  Transforms a saved Yaml file to a Powershell Hash table
+
+  Parameters:   -InputObject      = the json custom object file to import.
+
+  Example:    $json | ConvertFrom-Json | ConvertTo-HashTable
+#>
+function ConvertTo-Hashtable {
+    [CmdletBinding()]
+    [OutputType('hashtable')]
+    param (
+        [Parameter(ValueFromPipeline)]
+        $InputObject
+    )
+
+    process {
+        ## Return null if the input is null. This can happen when calling the function
+        ## recursively and a property is null
+        if ($null -eq $InputObject) {
+            return $null
+        }
+
+        ## Check if the input is an array or collection. If so, we also need to convert
+        ## those types into hash tables as well. This function will convert all child
+        ## objects into hash tables (if applicable)
+        if ($InputObject -is [System.Collections.IEnumerable] -and $InputObject -isnot [string]) {
+            $collection = @(
+                foreach ($object in $InputObject) {
+                    ConvertTo-Hashtable -InputObject $object
+                }
+            )
+
+            ## Return the array but don't enumerate it because the object may be pretty complex
+            Write-Output -NoEnumerate $collection
+        } elseif ($InputObject -is [psobject]) { ## If the object has properties that need enumeration
+            ## Convert it to its own hash table and return it
+            $hash = @{}
+            foreach ($property in $InputObject.PSObject.Properties) {
+                $hash[$property.Name] = ConvertTo-Hashtable -InputObject $property.Value
+            }
+            $hash
+        } else {
+            ## If the object isn't an array, collection, or other object, it's already a hash table
+            ## So just return it.
+            $InputObject
+        }
+    }
 }
 
 
@@ -560,13 +623,19 @@ param(
     [parameter( Mandatory = $false)]
     [string]$Subscription,
     [parameter( Mandatory = $true)]
-    [System.Object]$object
+    [hashtable]$AzObject
 )
 
-    if ($Subscription){ $object = Set-IdSubscription -object $object -Subscription $Subscription }
+
+
+    if ($Subscription){  
+      $IdString = Set-IdSubscription -IdString $AzObject.id -Subscription $Subscription 
+      $AzObject.id = $IdString
+    }
 
     #return the object
-    $object 
+     $AzureObject
+
 }
 
 
@@ -586,22 +655,26 @@ param(
 #> 
 function Set-IdSubscription(){
 param(
+    [OutputType([hashtable])]
     [parameter( Mandatory = $true)]
     [string]$Subscription,
     [parameter( Mandatory = $true)]
-    [System.Object]$object
+    [string]$IdString
 )
 
+   # write-host "Set-IdSubscription azobject type = $($AzObject.GetType())"
+    
+    
   #Get Id property and split by '/' subscription
-  try{
-  $id = $object.id
-    $IdArray = $id.split('/')
+#  try{
+#  $id = $AzObject.id
+    $IdArray = $IdString.split('/')
      
-  }
-  catch{
-    throw "Unable to split Id element on object for subscription substitution.  Check input object"
-  }
-
+#  }
+#  catch{
+#    throw "Unable to split Id element on object for subscription substitution.  Check input object"
+#  }
+#  finally{
   If ($IdArray[1] -eq 'subscriptions'){
     # substitute the subscription id with the new version
     $IdArray[2] = $Subscription
@@ -609,20 +682,19 @@ param(
     #reconstruct the Id
     $id = ""
         for ($i=1;$i -lt $IdArray.Count; $i++) {
-	    "This is object " + $i
-        $IdArray[$i]
-        $id = $id + "/" + $IdArray[$i] 
+        $id = "$($id)/$($IdArray[$i])" 
     }
 
-   write-debug "new constructed id = $($id)"
+   #write-debug "new constructed id = $($id)"
 
-   $object.id = $id
+   $IdString = $id
 
-   #return the amendedobject
-   $object
+   #return the amended string
+   #write-host "Set-IdSubscription2 azobject type = $($AzObject.GetType())"
 
   }
- 
+     $IdString
+ #    }
 }
 
 
@@ -761,7 +833,6 @@ param(
     [parameter( Mandatory = $false)]
     [bool]$unescape=$true
 )
-
 
 
 Process  {
