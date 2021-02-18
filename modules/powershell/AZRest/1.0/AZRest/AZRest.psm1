@@ -532,7 +532,9 @@ param(
 
     [string]$content = Get-Content -Path $path -Raw 
     
-    Remove-TypeData System.Array # Remove the redundant ETS-supplied .Count property
+    if ( Get-TypeData -TypeName "System.Array" ){
+       Remove-TypeData System.Array # Remove the redundant ETS-supplied .Count property
+    }
     # https://stackoverflow.com/questions/20848507/why-does-powershell-give-different-result-in-one-liner-than-two-liner-when-conve/38212718#38212718
 
     $jsonobj =  ($content  | ConvertFrom-Json )
