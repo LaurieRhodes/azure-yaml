@@ -17,6 +17,7 @@ Version History
 
 
 
+function Get-Header(){
 <#
   Function:  Get-Header
 
@@ -29,20 +30,29 @@ Version History
                 -Thumbprint = eg. B35E2C978F83B49C36116802DC08B7DF7B58AB08
 
                 -Tenant     = disney.onmicrosoft.com
-                -Scope      = graph / azure
 
-                -Proxy      ="http://proxy:8080"
+                -Scope      = "azure"    - Azure Resource Manager
+                              "graph"    - Microsoft Office and Mobile Device Management
+                              "keyvault" - data plane of Azure keyvaults
+                              "storage"  - data plane of Azure storage Accounts
+                              "analytics"- data plane of log analytics
+                              "portal"   - api interface of the Azure portal (only supports username / passord authentication)
+
+                -Proxy      = "http://proxy:8080" (if operating from behind a proxy)
+
                 -ProxyCredential = (Credential Object)
+
+                -Interactive  = suitable for use with MFA enabled accounts
 
   Example:  
     
-     Get-Header -scope "azure" -Tenant "disney.com" -Username "Donald@disney.com" -Password "Mickey01" 
+     Get-Header -scope "portal" -Tenant "disney.com" -Username "Donald@disney.com" -Password "Mickey01" 
      Get-Header -scope "graph" -Tenant "disney.com" -AppId "aa73b052-6cea-4f17-b54b-6a536be5c832" -Thumbprint "B35E2C978F83B49C36611802DC08B7DF7B58AB08" 
      Get-Header -scope "azure" -Tenant "disney.com" -AppId "aa73b052-6cea-4f17-b54b-6a536be5c715" -Secret 'xznhW@w/.Yz14[vC0XbNzDFwiRRxUtZ3'
+     Get-Header -scope "azure" -Tenant "disney.com" -Interactive
 
-#>
-function Get-Header(){
- 
+
+#> 
     [CmdletBinding()]
     param(
         [Parameter(ParameterSetName="User")]
@@ -62,7 +72,8 @@ function Get-Header(){
             "graph",
             "keyvault",
             "storage",
-            "analytics"
+            "analytics",
+            "portal"
         )][string]$Scope,
         [Parameter(ParameterSetName="App2")]
         [string]$Secret,
@@ -82,6 +93,10 @@ function Get-Header(){
  
  
        switch($Scope){
+           'portal' {$TokenEndpoint = "https://login.microsoftonline.com/$($tenant)/oauth2/token"
+                    $RequestScope = "https://graph.microsoft.com/.default"
+                    $ResourceID  = "74658136-14ec-4630-ad9b-26e160ff0fc6"
+                    }
            'azure' {$TokenEndpoint = "https://login.microsoftonline.com/$($tenant)/oauth2/v2.0/token"
                     $RequestScope = "https://management.azure.com/.default"
                     $ResourceID  = "https://management.azure.com/"
@@ -189,6 +204,11 @@ function Get-Header(){
  
  
        switch($Scope){
+           'portal' {
+
+                        throw "FATAL Error - portal requests only support username and password (non interactive) flows"
+
+                    }
            'azure' {
                     $Body = @{
                         client_id = $AppId 
@@ -270,6 +290,15 @@ function Get-Header(){
         if (!([string]::IsNullOrEmpty($Password)) -And ($interactive -eq $false)){
  
        switch($Scope){
+           'portal' {
+                    $Body = @{
+                        client_id = "1950a258-227b-4e31-a9cf-717495945fc2"
+                        username = $Accountname
+                        password = $Password
+                        resource = "74658136-14ec-4630-ad9b-26e160ff0fc6"
+                        grant_type = "password"
+                      }
+                    }
            'azure' {
                     $Body = @{
                         client_id = $clientId 
@@ -325,6 +354,11 @@ function Get-Header(){
         if (!([string]::IsNullOrEmpty($Secret)) -And ($interactive -eq $false)){
  
        switch($Scope){
+            'portal' {
+
+                        throw "FATAL Error - portal requests only support username and password (non interactive) flows"
+
+                    }
            'azure' {
                     $Body = @{
                         client_id = $AppId  
@@ -385,8 +419,17 @@ function Get-Header(){
              $code_verifier = ([System.Web.HttpServerUtility]::UrlTokenEncode($Bytes)).Substring(0, 43)
              $code_challenge = ConvertFrom-CodeVerifier -Method s256 -codeVerifier $code_verifier
 
-             $url = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?scope=$($RequestScope)&response_type=$($response_type)&client_id=$($clientid)&redirect_uri=$([System.Web.HttpUtility]::UrlEncode($redirectUri))&prompt=select_account&code_challenge=$($code_challenge)&code_challenge_method=$($code_challenge_method)&state=$($state)" 
+
              $url = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?scope=$($RequestScope)&response_type=$($response_type)&client_id=$($clientid)&redirect_uri=$([System.Web.HttpUtility]::UrlEncode($redirectUri))&prompt=select_account&code_challenge=$($code_challenge)&code_challenge_method=$($code_challenge_method)" 
+ 
+             # portal requests only support username and password (non interactive) flows  
+            if ($Scope -eq "portal"){
+
+                throw "FATAL Error - portal requests only support username and password (non interactive) flows"
+
+            }
+ 
+ 
                Add-Type -AssemblyName System.Windows.Forms
 
                 $form = New-Object -TypeName System.Windows.Forms.Form -Property @{Width=440;Height=640}
@@ -415,8 +458,6 @@ function Get-Header(){
 
     #get Access Token
 
-#$body = "grant_type=authorization_code&redirect_uri=$($redirectUri)&client_id=$($clientId)&code=$($authCode)&code_verifier=$($code_verifier)"
-
          $Body = @{
               client_id = $clientId 
               code = $authCode
@@ -429,22 +470,6 @@ function Get-Header(){
          
          } # end interactive block
 
-
-
-
-         <#
- 
-            # The result should contain a token for use with any REST endpoint
-
-            $RequestSplat = @{
-                Uri = $TokenEndpoint
-                Method = “POST”
-                Body = $Body 
-            }
-
-            #>
-
-           # $Response = Invoke-WebRequest -Uri $TokenEndpoint -Method POST -Body $Body -UseBasicParsing
 
             $RequestSplat = @{
                 Uri = $TokenEndpoint
@@ -467,12 +492,17 @@ function Get-Header(){
             $Header.Add("Authorization", "Bearer "+$ResponseJSON.access_token)
             $Header.Add("Content-Type", "application/json")
 
-            #storage requests require two different keys in the header 
+            # storage requests require two different keys in the header 
             if ($Scope -eq "storage"){
                 $Header.Add("x-ms-version", "2019-12-12")
                 $Header.Add("x-ms-date", [System.DateTime]::UtcNow.ToString("R"))
             }
 
+            # portal requests require two different keys in the header 
+            if ($Scope -eq "portal"){
+                $Header.Add("x-ms-client-request-id", "$((New-Guid).Guid)")
+                $Header.Add("x-ms-session-id", "12345678910111213141516")
+            }
  
     }
     
@@ -483,6 +513,7 @@ function Get-Header(){
     }
  
 }
+
 
 
 
@@ -1300,12 +1331,15 @@ Process  {
      
    $uri = "https://management.azure.com$($azobject.id)?api-version=$($apiversions["$($arraykey)"])"
    
+   $jsonbody =  ConvertTo-Json -Depth 50 -InputObject $azobject 
+   
    if ($unescape -eq $true){
-      Invoke-RestMethod -Uri $uri -Method PUT -Headers $authHeader -Body $($azobject | ConvertTo-Json -Depth 50 | % { [System.Text.RegularExpressions.Regex]::Unescape($_) })   
+     # Invoke-RestMethod -Uri $uri -Method PUT -Headers $authHeader -Body $( $jsonbody  | % { [System.Text.RegularExpressions.Regex]::Unescape($_) })   
+  Invoke-RestMethod -Uri $uri -Method PUT -Headers $authHeader -Body $jsonbody  
    }
    else  
    {
-      Invoke-RestMethod -Uri $uri -Method PUT -Headers $authHeader -Body $($azobject | ConvertTo-Json -Depth 50 )   
+      Invoke-RestMethod -Uri $uri -Method PUT -Headers $authHeader -Body $jsonbody   
    }
    
   }
