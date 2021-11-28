@@ -17,6 +17,7 @@ Version History
 
 
 
+
 function Get-Header(){
 <#
   Function:  Get-Header
@@ -32,11 +33,25 @@ function Get-Header(){
                 -Tenant     = disney.onmicrosoft.com
 
                 -Scope      = "azure"    - Azure Resource Manager
+                                           "https://management.azure.com/"
+                                
                               "graph"    - Microsoft Office and Mobile Device Management
+                                            "https://graph.microsoft.com/beta/groups/'
+
                               "keyvault" - data plane of Azure keyvaults
-                              "storage"  - data plane of Azure storage Accounts
+                                            "https://<keyvaultname>.vault.azure.net/certificates/"
+
+                              "storage"  - data plane of Azure storage Accounts (table)
+                                            "https://<storageaccount>.table.core.windows.net/"
+
                               "analytics"- data plane of log analytics
-                              "portal"   - api interface of the Azure portal (only supports username / passord authentication)
+                                            "https://api.loganalytics.io/v1/workspaces"
+
+                              "portal"   - api interface of the Azure portal (only supports username / password authentication)
+                                            "https://main.iam.ad.ext.azure.com/api/"
+
+                              "windows"  - api interface of legacy Azure AD  (only supports username / password authentication)
+                                            "https://graph.windows.net/<tenant>/policies?api-version=1.6-internal"
 
                 -Proxy      = "http://proxy:8080" (if operating from behind a proxy)
 
@@ -73,7 +88,8 @@ function Get-Header(){
             "keyvault",
             "storage",
             "analytics",
-            "portal"
+            "portal",
+            "windows"
         )][string]$Scope,
         [Parameter(ParameterSetName="App2")]
         [string]$Secret,
@@ -116,10 +132,15 @@ function Get-Header(){
            'analytics'{$TokenEndpoint = "https://login.microsoftonline.com/$($tenant)/oauth2/v2.0/token"
                     $RequestScope = "https://api.loganalytics.io/.default"
                     $ResourceID  = "https://api.loganalytics.io/"
-                    }                                   
+                    } 
+           'windows'{$TokenEndpoint = "https://login.microsoftonline.com/$($tenant)/oauth2/token"
+                    $RequestScope = "openid"
+                    $ResourceID  = "https://graph.windows.net/"
+                    }                                                        
            default { throw "Scope $($Scope) undefined - use azure or graph'" }
         }
  
+ #$RequestScope = "openid"
         #Set Accountname based on Username or AppId
         if (!([string]::IsNullOrEmpty($Username))){$Accountname = $Username }
         if (!([string]::IsNullOrEmpty($AppId))){$Accountname = $AppId }
@@ -253,6 +274,11 @@ function Get-Header(){
                         grant_type = "client_credentials"
                         }                    
                     }
+           'windows' {
+
+                        throw "FATAL Error - legacty windows graph requests only support username and password (non interactive) flows"
+
+                    }
         }# end switch
  
  
@@ -342,7 +368,13 @@ function Get-Header(){
                         grant_type = "password"
                       }
                      } 
-           
+           'windows' {
+                    $Body = "grant_type=password"`
+                     +"&username=" +$Accountname `
+                     +"&client_id=" +$clientId `
+                     +"&password=$($Password)" `
+                     +"&resource=" +[system.uri]::EscapeDataString($ResourceID)
+                        }           
  
         }# end switch
  
@@ -397,7 +429,14 @@ function Get-Header(){
                         grant_type = "client_credentials"
                       }
                     }                      
-                      
+           'windows' {
+                    $Body = @{
+                        client_id = $AppId  
+                        client_secret = $Secret
+                        scope = $RequestScope
+                        grant_type = "client_credentials"
+                      }
+                    }                        
         }# end switch
  
  
@@ -428,7 +467,12 @@ function Get-Header(){
                 throw "FATAL Error - portal requests only support username and password (non interactive) flows"
 
             }
- 
+             # portal requests only support username and password (non interactive) flows  
+            if ($Scope -eq "windows"){
+
+                throw "FATAL Error - legacty windows graph requests only support username and password (non interactive) flows"
+
+            }
  
                Add-Type -AssemblyName System.Windows.Forms
 
@@ -513,6 +557,7 @@ function Get-Header(){
     }
  
 }
+
 
 
 
@@ -1136,15 +1181,8 @@ param(
     
     
   #Get Id property and split by '/' subscription
-#  try{
-#  $id = $AzObject.id
     $IdArray = $IdString.split('/')
      
-#  }
-#  catch{
-#    throw "Unable to split Id element on object for subscription substitution.  Check input object"
-#  }
-#  finally{
   If ($IdArray[1] -eq 'subscriptions'){
     # substitute the subscription id with the new version
     $IdArray[2] = $Subscription
@@ -1155,12 +1193,9 @@ param(
         $id = "$($id)/$($IdArray[$i])" 
     }
 
-   #write-debug "new constructed id = $($id)"
 
    $IdString = $id
 
-   #return the amended string
-   #write-host "Set-IdSubscription2 azobject type = $($AzObject.GetType())"
 
   }
      $IdString
