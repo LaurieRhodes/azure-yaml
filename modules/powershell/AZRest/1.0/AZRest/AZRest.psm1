@@ -976,10 +976,11 @@ param(
 )
 
     $dict = @{}
-
-    $uri = "https://management.azure.com/subscriptions/$($SubscriptionID)/providers/?api-version=2015-01-01"
-    $result = Invoke-RestMethod -Uri $uri -Method GET -Headers $authHeader 
-
+    
+    Try{
+      $uri = "https://management.azure.com/subscriptions/$($SubscriptionID)/providers/?api-version=2015-01-01"
+      $result = Invoke-RestMethod -Uri $uri -Method GET -Headers $authHeader 
+      
     $namespaces = $result.value 
 
     foreach ($namespace in $namespaces){
@@ -991,7 +992,12 @@ param(
      }
 
      #return dictionary
-     $dict
+     $dict      
+    } catch {
+      # catch any authentication or api errors
+      Throw "Get-AzureAPIVersions failed - $($_.ErrorDetails.Message)"
+    }
+
 }
 
 
@@ -1230,26 +1236,46 @@ param(
 
 
 Process  {
-     $IDArray = ($id).split("/")
-     # $namespace = $IDArray[6]
-     # $resourcetype = $IDArray[7]
+    $IDArray = ($id).split("/")
 
-     # Find the last 'provider' element
-     for ($i=0; $i -lt $IDArray.length; $i++) {
-      if ($IDArray[$i] -eq 'providers'){$provIndex =  $i}
-     }
-
-     $arraykey = "$($IDArray[$provIndex + 1])/$($IDArray[$provIndex + 2])"
-
-   #type can be overloaded - include if present
-   if($IDArray[$provIndex + 4]){ 
-     if($apiversions["$($arraykey)/$($IDArray[$provIndex + 4])"]){ $arraykey = "$($arraykey)/$($IDArray[$provIndex + 4])" } 
+  # Because object types can be overloaded from root namespaces a bit of testing is required
+  # to validate what the object type is.
+  # The last provider element in the string is always the root namespace so we have to find
+  # the last 'provider' element
+  
+   for ($i=0; $i -lt $IDArray.length; $i++) {
+	   if ($IDArray[$i] -eq 'providers'){$provIndex =  $i}
    }
-     
-     #Resource Groups are a special case without a provider
-     if($IDArray[-2] -eq "resourceGroups"){ $arraykey = "Microsoft.Resources/resourceGroups"}
 
-     $uri = "https://management.azure.com/$($id)?api-version=$($apiversions["$($arraykey)"])"
+  # $provIndex references where the last occurence of 'provider' is in the Id string
+  # we construct the resource type from stacking elements from the ID string
+
+  $elementcount=1
+  $providertype = @()
+
+  # Starting at the provider, until the end of the string, stack each potential overload if it exists
+  for ($i=$provIndex; $i -lt $IDArray.length; $i++) {
+    switch($elementcount){
+     {'2','3','5','7','9' -contains $_} { $providertype += $IDArray[$i]}
+     default {}
+    }
+    $elementcount = $elementcount + 1
+  }
+
+  # We now know the object type
+  $objecttype  = $providertype -join "/"
+
+ # There are some inconsistent objects that dont have a type property - default to deriving type from the ID
+  if ($objecttype -eq $null){ $objecttype = $IDArray[$provIndex + 2]}
+  #Resource Groups are also a special case without a provider
+  if($IDArray.count -eq 5){ $objecttype = "Microsoft.Resources/resourceGroups"}
+  # Subscriptions are special too
+  if(($IDArray[1] -eq 'subscriptions') -and ($idarray.Count -eq 3)){ $objecttype = "Microsoft.Resources/subscriptions" }
+        
+  # We can now get the correct API version for the object we are dealing with 
+  # which is required for the Azure management URI 
+ 
+  $uri = "https://management.azure.com/$($id)?api-version=$($apiversions["$($objecttype)"])"
     Invoke-RestMethod -Uri $uri -Method GET -Headers $authHeader 
 
   }
@@ -1342,35 +1368,49 @@ param(
 
 Process  {
     $IDArray = ($azobject.id).split("/")
-    # $namespace = $IDArray[6]
-    # $resourcetype = $IDArray[7]
 
-   # Find the last 'provider' element
+  # Because object types can be overloaded from root namespaces a bit of testing is required
+  # to validate what the object type is.
+  # The last provider element in the string is always the root namespace so we have to find
+  # the last 'provider' element
+  
    for ($i=0; $i -lt $IDArray.length; $i++) {
 	   if ($IDArray[$i] -eq 'providers'){$provIndex =  $i}
    }
 
-   $arraykey = "$($IDArray[$provIndex + 1])/$($IDArray[$provIndex + 2])"
+  # $provIndex references where the last occurence of 'provider' is in the Id string
+  # we construct the resource type from stacking elements from the ID string
 
+  $elementcount=1
+  $providertype = @()
 
-   #type can be overloaded - include if present
-   if($IDArray[$provIndex + 4]){ 
-     if($apiversions["$($arraykey)/$($IDArray[$provIndex + 4])"]){ $arraykey = "$($arraykey)/$($IDArray[$provIndex + 4])" } 
-   }
-     
-     #Resource Groups are a special case without a provider
-     if($IDArray.count -eq 5){ $arraykey = "Microsoft.Resources/resourceGroups"}
+  # Starting at the provider, until the end of the string, stack each potential overload if it exists
+  for ($i=$provIndex; $i -lt $IDArray.length; $i++) {
+    switch($elementcount){
+     {'2','3','5','7','9' -contains $_} { $providertype += $IDArray[$i]}
+     default {}
+    }
+    $elementcount = $elementcount + 1
+  }
 
+  # We now know the object type
+  $objecttype  = $providertype -join "/"
 
-#write-output "arraykey = $($arraykey )"
-     
-   $uri = "https://management.azure.com$($azobject.id)?api-version=$($apiversions["$($arraykey)"])"
+ # There are some inconsistent objects that dont have a type property - default to deriving type from the ID
+  if ($objecttype -eq $null){ $objecttype = $IDArray[$provIndex + 2]}
+  #Resource Groups are also a special case without a provider
+  if($IDArray.count -eq 5){ $objecttype = "Microsoft.Resources/resourceGroups"}
    
+  # We can now get the correct API version for the object we are dealing with 
+  # which is required for the Azure management URI 
+  $uri = "https://management.azure.com$($azobject.id)?api-version=$($apiversions["$($objecttype)"])"
+   
+   # The actual payload of the API request is simply deployed in json
    $jsonbody =  ConvertTo-Json -Depth 50 -InputObject $azobject 
    
    if ($unescape -eq $true){
      # Invoke-RestMethod -Uri $uri -Method PUT -Headers $authHeader -Body $( $jsonbody  | % { [System.Text.RegularExpressions.Regex]::Unescape($_) })   
-  Invoke-RestMethod -Uri $uri -Method PUT -Headers $authHeader -Body $jsonbody  
+    Invoke-RestMethod -Uri $uri -Method PUT -Headers $authHeader -Body $jsonbody  
    }
    else  
    {
